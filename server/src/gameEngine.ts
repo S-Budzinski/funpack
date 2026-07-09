@@ -45,6 +45,25 @@ function createGuestName() {
   return `Gosc${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
+function softenHint(category: Category, hint: string | null) {
+  const genericByCategory: Record<Category, string> = {
+    SPORT: "ruch",
+    ZWIERZETA: "natura",
+    JEDZENIE: "smak",
+    MIEJSCE: "lokalizacja",
+    ZAWOD: "praca",
+    WYDARZENIE: "okazja"
+  };
+  if (!hint) return genericByCategory[category];
+  const normalized = toAsciiLower(hint);
+  if (normalized.includes("lod")) return "zima";
+  if (normalized.includes("weln")) return "nabial";
+  if (normalized.includes("trawa")) return "farma";
+  if (normalized.includes("morze")) return "podroz";
+  if (normalized.includes("ring")) return "rywalizacja";
+  return genericByCategory[category];
+}
+
 async function ensureUniqueUsernameInSession(sessionId: string, requested: string) {
   const normalized = requested.trim() || createGuestName();
   const existing = await prisma.sessionPlayer.findFirst({
@@ -109,11 +128,15 @@ export async function createSession(config: SessionConfigInput) {
 export async function joinSession(code: string, username: string) {
   const session = await prisma.session.findUnique({ where: { code } });
   if (!session) throw new Error("Session not found.");
-  if (session.status !== SessionStatus.LOBBY) throw new Error("Game already started.");
   const finalUsername = await ensureUniqueUsernameInSession(session.id, username);
   const user = await prisma.user.create({ data: { username: finalUsername } });
   const sessionPlayer = await prisma.sessionPlayer.create({
-    data: { sessionId: session.id, userId: user.id }
+    data: {
+      sessionId: session.id,
+      userId: user.id,
+      // Joining mid-game means waiting for next round.
+      isEliminated: session.status !== SessionStatus.LOBBY
+    }
   });
   return { sessionId: session.id, sessionPlayerId: sessionPlayer.id };
 }
@@ -216,7 +239,7 @@ export async function startGame(hostSessionPlayerId: string) {
       status: SessionStatus.CARD_REVEAL,
       currentCategory: category,
       currentWord: selected.phrase,
-      currentHint: selected.hint
+      currentHint: softenHint(category, selected.hint)
     }
   });
 }
@@ -369,7 +392,7 @@ export async function nextRound(hostSessionPlayerId: string) {
       status: SessionStatus.CARD_REVEAL,
       currentCategory: category,
       currentWord: selected.phrase,
-      currentHint: selected.hint
+      currentHint: softenHint(category, selected.hint)
     }
   });
 }

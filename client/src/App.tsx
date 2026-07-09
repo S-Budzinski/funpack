@@ -6,6 +6,7 @@ import type { Category, PlayerCard, PublicState } from "./types";
 const categories: Category[] = ["SPORT", "ZWIERZETA", "JEDZENIE", "MIEJSCE", "ZAWOD", "WYDARZENIE"];
 
 type LocalPlayer = { sessionPlayerId: string; code: string };
+const SESSION_STORAGE_KEY = "impostor-local-player";
 
 export default function App() {
   const [mode, setMode] = useState<"menu" | "gameMenu" | "create" | "join" | "game">("menu");
@@ -63,6 +64,28 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const saved = JSON.parse(raw) as LocalPlayer;
+      if (saved?.sessionPlayerId && saved?.code) {
+        setLocalPlayer(saved);
+        setMode("game");
+      }
+    } catch {
+      window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!localPlayer) {
+      window.localStorage.removeItem(SESSION_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(localPlayer));
+  }, [localPlayer]);
+
+  useEffect(() => {
     const handler = (payload: { sessionPlayerId: string; isCorrect: boolean; alreadyUsed?: boolean }) => {
       if (!localPlayer) return;
       if (payload.sessionPlayerId !== localPlayer.sessionPlayerId) return;
@@ -96,8 +119,13 @@ export default function App() {
   useEffect(() => {
     if (!localPlayer) return;
     socket.emit("session:watch", { code: localPlayer.code });
-    getSessionState(localPlayer.code).then(setState).catch(() => null);
-    getPlayerCard(localPlayer.sessionPlayerId).then(setCard).catch(() => null);
+    getSessionState(localPlayer.code)
+      .then(setState)
+      .catch(() => {
+        setLocalPlayer(null);
+        setMode("menu");
+      });
+    getPlayerCard(localPlayer.sessionPlayerId).then(setCard).catch(() => setCard(null));
   }, [localPlayer]);
 
   useEffect(() => {
@@ -167,6 +195,7 @@ export default function App() {
   const isCardReveal = state?.status === "CARD_REVEAL";
   const canShowCardFront = isCardReveal && cardFlipped && Boolean(card) && !card?.acknowledged;
   const isEliminated = Boolean(me?.isEliminated);
+  const isWaitingForNextRound = Boolean(state && state.status !== "LOBBY" && !card && isEliminated);
   const eliminatedName = roundResult ? state?.players.find((p) => p.id === roundResult.eliminatedPlayerId)?.username ?? "Gracz" : "";
   const eliminatedRoleLabel = roundResult?.eliminatedWasImpostor ? "IMPOSTOR" : "UCZESTNIK";
 
@@ -381,6 +410,9 @@ export default function App() {
             )}
             {(state.status !== "CARD_REVEAL" || card?.acknowledged) && (
               <div className="rounded-xl bg-zinc-800 p-4">
+                {isWaitingForNextRound && (
+                  <p className="text-sm text-zinc-300">Dolaczyles w trakcie rozgrywki. Oczekiwanie na kolejna runde.</p>
+                )}
                 {state.status === "CARD_REVEAL" && (
                   <p className="text-sm text-zinc-300">Oczekiwanie na wszystkich graczy...</p>
                 )}
@@ -472,9 +504,7 @@ export default function App() {
                     {guessUsed && <p className="mt-2 text-sm text-zinc-300">Wykorzystano juz strzal.</p>}
                   </div>
                 ) : (
-                  <div className="mt-4 rounded-lg border border-zinc-700 p-3">
-                    <p className="text-sm text-zinc-300">Input impostora pojawi sie po odkryciu fiszki.</p>
-                  </div>
+                  <></>
                 )}
               </>
             )}
