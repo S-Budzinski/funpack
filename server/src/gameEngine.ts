@@ -274,7 +274,16 @@ export async function finalizeVoting(hostSessionPlayerId: string) {
   });
   const alive = eligibleRoles.map((r) => r.sessionPlayer).filter((p) => !p.isEliminated);
   const votes = await prisma.vote.findMany({ where: { roundId: round.id } });
-  if (votes.length !== alive.length) throw new Error("Not all votes submitted.");
+  const votedIds = new Set(votes.map((v) => v.voterId));
+  const missingVoters = alive.filter((p) => !votedIds.has(p.id)).map((p) => p.id);
+  if (missingVoters.length > 0) {
+    const missingUsers = await prisma.sessionPlayer.findMany({
+      where: { id: { in: missingVoters } },
+      include: { user: true }
+    });
+    const names = missingUsers.map((p) => p.user.username).join(", ");
+    throw new Error(`Nie wszystkie glosy zostaly oddane. Brakuje: ${names}`);
+  }
 
   const countMap = new Map<string, number>();
   for (const vote of votes) countMap.set(vote.targetId, (countMap.get(vote.targetId) ?? 0) + 1);
@@ -344,7 +353,7 @@ export async function nextRound(hostSessionPlayerId: string) {
   });
   await prisma.sessionPlayer.updateMany({
     where: { sessionId: host.sessionId },
-    data: { isEliminated: false }
+    data: { isEliminated: false, guessedThisGame: false }
   });
   const allPlayers = await prisma.sessionPlayer.findMany({ where: { sessionId: host.sessionId } });
   const shuffled = [...allPlayers].sort(() => Math.random() - 0.5);
