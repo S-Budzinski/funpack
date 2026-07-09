@@ -192,12 +192,16 @@ export default function App() {
   };
 
   const commonBtn = "rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold hover:bg-violet-500";
+  const disabledBtn = "rounded-lg bg-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-400 cursor-not-allowed";
   const isCardReveal = state?.status === "CARD_REVEAL";
   const canShowCardFront = isCardReveal && cardFlipped && Boolean(card) && !card?.acknowledged;
   const isEliminated = Boolean(me?.isEliminated);
   const isWaitingForNextRound = Boolean(state && state.status !== "LOBBY" && !card && isEliminated);
   const eliminatedName = roundResult ? state?.players.find((p) => p.id === roundResult.eliminatedPlayerId)?.username ?? "Gracz" : "";
   const eliminatedRoleLabel = roundResult?.eliminatedWasImpostor ? "IMPOSTOR" : "UCZESTNIK";
+  const gameLocked = state?.status === "GAME_END";
+  const canStartVoting = Boolean(state && !gameLocked && state.status !== "VOTING" && state.status !== "LOBBY" && state.status !== "CARD_REVEAL");
+  const canFinalizeVoting = Boolean(state && !gameLocked && state.status === "VOTING" && state.votesRequired > 0 && state.votesSubmitted >= state.votesRequired);
 
   if (mode === "menu") {
     return (
@@ -476,8 +480,23 @@ export default function App() {
           <aside className="rounded-xl border border-zinc-800 p-4">
             {isHost && (
               <div className="space-y-2">
-                <button className={`${commonBtn} w-full`} onClick={() => socket.emit("vote:start", { hostSessionPlayerId: localPlayer?.sessionPlayerId, code: state.code })}>Uruchom glosowanie</button>
-                <button className={`${commonBtn} w-full`} onClick={() => socket.emit("vote:finalize", { hostSessionPlayerId: localPlayer?.sessionPlayerId, code: state.code })}>Zakoncz glosowanie</button>
+                <button
+                  className={`${canStartVoting ? commonBtn : disabledBtn} w-full`}
+                  disabled={!canStartVoting}
+                  onClick={() => socket.emit("vote:start", { hostSessionPlayerId: localPlayer?.sessionPlayerId, code: state.code })}
+                >
+                  Uruchom glosowanie
+                </button>
+                <button
+                  className={`${canFinalizeVoting ? commonBtn : disabledBtn} w-full`}
+                  disabled={!canFinalizeVoting}
+                  onClick={() => socket.emit("vote:finalize", { hostSessionPlayerId: localPlayer?.sessionPlayerId, code: state.code })}
+                >
+                  Zakoncz glosowanie
+                </button>
+                {state?.status === "VOTING" && (
+                  <p className="text-xs text-zinc-400">Oddane glosy: {state.votesSubmitted}/{state.votesRequired}</p>
+                )}
                 <button className={`${commonBtn} w-full`} onClick={() => socket.emit("round:next", { hostSessionPlayerId: localPlayer?.sessionPlayerId, code: state.code })}>Nastepna runda</button>
                 <button className="w-full rounded-lg bg-zinc-700 px-4 py-2" onClick={() => socket.emit("game:reset", { hostSessionPlayerId: localPlayer?.sessionPlayerId, code: state.code })}>Powrot do lobby</button>
               </div>

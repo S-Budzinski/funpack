@@ -13,6 +13,8 @@ export type PublicState = {
   currentCategory: Category | null;
   players: { id: string; username: string; isHost: boolean; isEliminated: boolean }[];
   roundNumber: number;
+  votesSubmitted: number;
+  votesRequired: number;
 };
 
 export type PlayerCard = {

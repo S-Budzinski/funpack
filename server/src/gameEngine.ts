@@ -443,6 +443,20 @@ export async function getPublicStateByCode(code: string): Promise<PublicState> {
     include: { sessionPlayers: { include: { user: true } }, rounds: { orderBy: { roundNumber: "desc" }, take: 1 } }
   });
   if (!session) throw new Error("Session not found.");
+  const currentRound = session.rounds[0];
+  let votesSubmitted = 0;
+  let votesRequired = 0;
+  if (currentRound) {
+    const [votesCount, roles] = await Promise.all([
+      prisma.vote.count({ where: { roundId: currentRound.id } }),
+      prisma.playerRole.findMany({
+        where: { roundId: currentRound.id },
+        include: { sessionPlayer: true }
+      })
+    ]);
+    votesSubmitted = votesCount;
+    votesRequired = roles.filter((r) => !r.sessionPlayer.isEliminated).length;
+  }
   return {
     sessionId: session.id,
     code: session.code,
@@ -459,7 +473,9 @@ export async function getPublicStateByCode(code: string): Promise<PublicState> {
       isHost: p.isHost,
       isEliminated: p.isEliminated
     })),
-    roundNumber: session.rounds[0]?.roundNumber ?? 0,
+    roundNumber: currentRound?.roundNumber ?? 0,
+    votesSubmitted,
+    votesRequired,
     ...DEFAULT_STATE
   };
 }

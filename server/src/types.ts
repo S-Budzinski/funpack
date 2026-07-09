@@ -25,6 +25,8 @@ export type PublicState = {
   eliminatedPlayerId: string | null;
   eliminatedWasImpostor: boolean | null;
   revealImpostors: Array<{ id: string; username: string }> | null;
+  votesSubmitted: number;
+  votesRequired: number;
 };
 
 export type SessionConfigInput = {
