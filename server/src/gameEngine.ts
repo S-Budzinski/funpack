@@ -54,14 +54,9 @@ function softenHint(category: Category, hint: string | null) {
     ZAWOD: "praca",
     WYDARZENIE: "okazja"
   };
-  if (!hint) return genericByCategory[category];
-  const normalized = toAsciiLower(hint);
-  if (normalized.includes("lod")) return "zima";
-  if (normalized.includes("weln")) return "nabial";
-  if (normalized.includes("trawa")) return "farma";
-  if (normalized.includes("morze")) return "podroz";
-  if (normalized.includes("ring")) return "rywalizacja";
-  return genericByCategory[category];
+  // Prefer the original hint from seed data.
+  // Use a generic fallback only when hint is missing.
+  return hint ?? genericByCategory[category];
 }
 
 async function ensureUniqueUsernameInSession(sessionId: string, requested: string) {
