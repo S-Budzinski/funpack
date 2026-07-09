@@ -8,7 +8,7 @@ const categories: Category[] = ["SPORT", "ZWIERZETA", "JEDZENIE", "MIEJSCE", "ZA
 type LocalPlayer = { sessionPlayerId: string; code: string };
 
 export default function App() {
-  const [mode, setMode] = useState<"menu" | "create" | "join" | "game">("menu");
+  const [mode, setMode] = useState<"menu" | "gameMenu" | "create" | "join" | "game">("menu");
   const [state, setState] = useState<PublicState | null>(null);
   const [localPlayer, setLocalPlayer] = useState<LocalPlayer | null>(null);
   const [card, setCard] = useState<PlayerCard | null>(null);
@@ -43,15 +43,23 @@ export default function App() {
     [state, localPlayer]
   );
   const isHost = Boolean(me?.isHost);
+  const leaveLobby = () => {
+    setLocalPlayer(null);
+    setState(null);
+    setCard(null);
+    setGuess("");
+    setVoteTarget("");
+    setError("");
+    setMode("menu");
+  };
 
   const commonBtn = "rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold hover:bg-violet-500";
 
   if (mode === "menu") {
     return (
       <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 p-6">
-        <h1 className="text-4xl font-bold">Party Games</h1>
         <div className="grid gap-4 md:grid-cols-2">
-          <button onClick={() => setMode("create")} className="rounded-xl border border-violet-400 p-6 text-left">
+          <button onClick={() => setMode("gameMenu")} className="rounded-xl border border-violet-400 p-6 text-left">
             <p className="text-2xl font-bold">Impostor</p>
             <p>Stworz lobby lub dolacz przez kod.</p>
           </button>
@@ -62,7 +70,20 @@ export default function App() {
             </button>
           ))}
         </div>
-        <button onClick={() => setMode("join")} className={commonBtn}>
+      </main>
+    );
+  }
+
+  if (mode === "gameMenu") {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-4 p-6">
+        <button onClick={() => setMode("menu")} className="text-left text-zinc-400">← Wroc</button>
+        <h2 className="text-2xl font-bold">Impostor</h2>
+        <p className="text-zinc-300">Wybierz jak chcesz wejsc do gry.</p>
+        <button onClick={() => setMode("create")} className={commonBtn}>
+          Stworz lobby
+        </button>
+        <button onClick={() => setMode("join")} className="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-semibold hover:bg-zinc-600">
           Dolacz do lobby
         </button>
       </main>
@@ -85,7 +106,12 @@ export default function App() {
           <p className="font-semibold">Kod lobby: {state?.code}</p>
           <p className="text-sm text-zinc-400">Runda: {state?.roundNumber ?? 0}</p>
         </div>
-        <p className="text-sm text-zinc-300">{me?.username}</p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-zinc-300">{me?.username}</p>
+          <button className="rounded-lg bg-zinc-700 px-3 py-1 text-xs font-semibold hover:bg-zinc-600" onClick={leaveLobby}>
+            Wyjdz z lobby
+          </button>
+        </div>
       </header>
       {error && <p className="rounded-md bg-red-900/60 p-2 text-sm">{error}</p>}
       {state?.status === "LOBBY" && (
