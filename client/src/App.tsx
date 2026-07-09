@@ -23,6 +23,7 @@ export default function App() {
     eliminatedWasImpostor: boolean;
   } | null>(null);
   const [cardFlipped, setCardFlipped] = useState(false);
+  const [impostorDiscovered, setImpostorDiscovered] = useState(false);
   const [lobbySettingsDraft, setLobbySettingsDraft] = useState<{
     impostorCount: number;
     selectedCategories: Category[];
@@ -65,6 +66,12 @@ export default function App() {
   }, [localPlayer, state?.roundNumber, state?.status]);
 
   useEffect(() => {
+    if (card?.isImpostor && cardFlipped) {
+      setImpostorDiscovered(true);
+    }
+  }, [card?.isImpostor, cardFlipped]);
+
+  useEffect(() => {
     if (!state) return;
     setLobbySettingsDraft({
       impostorCount: state.impostorCount,
@@ -76,10 +83,20 @@ export default function App() {
 
   useEffect(() => {
     setCardFlipped(false);
+    setImpostorDiscovered(false);
     setVoteSubmitted(false);
     setVotedForName("");
+    setVoteTarget("");
     setRoundResult(null);
   }, [state?.roundNumber]);
+
+  useEffect(() => {
+    if (state?.status === "VOTING") {
+      setVoteSubmitted(false);
+      setVotedForName("");
+      setVoteTarget("");
+    }
+  }, [state?.status]);
 
   const me = useMemo(
     () => state?.players.find((p) => p.id === localPlayer?.sessionPlayerId) ?? null,
@@ -320,11 +337,11 @@ export default function App() {
             )}
             <div className="mt-4 rounded-lg border border-zinc-700 p-3">
               <p className="font-semibold">Glosowanie: {state.status === "VOTING" ? "Aktywne" : "Nieaktywne"}</p>
-              {state.status === "VOTING" && (
+              {isEliminated ? (
+                <p className="mt-2 text-sm text-red-300">Zostales wyrzucony w trakcie gry. Nie mozesz juz oddawac glosow.</p>
+              ) : state.status === "VOTING" && (
                 <div className="mt-2 flex gap-2">
-                  {isEliminated ? (
-                    <p className="text-sm text-red-300">Zostales wyglosowany. Nie mozesz juz glosowac.</p>
-                  ) : voteSubmitted ? (
+                  {voteSubmitted ? (
                     <p className="text-sm text-zinc-300">Zaglosowano na: <span className="font-semibold text-zinc-100">{votedForName}</span></p>
                   ) : (
                     <>
@@ -336,6 +353,7 @@ export default function App() {
                       </select>
                       <button
                         className={commonBtn}
+                        disabled={!voteTarget}
                         onClick={() => {
                           if (!voteTarget) return;
                           const targetName = state.players.find((p) => p.id === voteTarget)?.username ?? "Gracz";
@@ -362,11 +380,19 @@ export default function App() {
               </div>
             )}
             {card?.isImpostor && !isEliminated && (
-              <div className="mt-4 rounded-lg border border-red-700 p-3">
-                <p className="font-semibold text-red-300">Strzal impostora (raz na gre)</p>
-                <input value={guess} onChange={(e) => setGuess(e.target.value)} className="mt-2 w-full rounded-md bg-zinc-800 p-2" placeholder="Wpisz haslo" />
-                <button className="mt-2 w-full rounded-lg bg-red-600 px-4 py-2" onClick={() => socket.emit("impostor:guess", { sessionPlayerId: localPlayer?.sessionPlayerId, guessedWord: guess, code: state.code })}>Zgadnij</button>
-              </div>
+              <>
+                {impostorDiscovered || card.acknowledged ? (
+                  <div className="mt-4 rounded-lg border border-red-700 p-3">
+                    <p className="font-semibold text-red-300">Strzal impostora (raz na gre)</p>
+                    <input value={guess} onChange={(e) => setGuess(e.target.value)} className="mt-2 w-full rounded-md bg-zinc-800 p-2" placeholder="Wpisz haslo" />
+                    <button className="mt-2 w-full rounded-lg bg-red-600 px-4 py-2" onClick={() => socket.emit("impostor:guess", { sessionPlayerId: localPlayer?.sessionPlayerId, guessedWord: guess, code: state.code })}>Zgadnij</button>
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-lg border border-zinc-700 p-3">
+                    <p className="text-sm text-zinc-300">Input impostora pojawi sie po odkryciu fiszki.</p>
+                  </div>
+                )}
+              </>
             )}
             {isEliminated && (
               <div className="mt-4 rounded-lg border border-red-800 bg-red-950/40 p-3">
