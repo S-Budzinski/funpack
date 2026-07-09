@@ -16,6 +16,12 @@ export default function App() {
   const [guess, setGuess] = useState("");
   const [voteTarget, setVoteTarget] = useState("");
   const [flash, setFlash] = useState<null | "green" | "red">(null);
+  const [voteSubmitted, setVoteSubmitted] = useState(false);
+  const [votedForName, setVotedForName] = useState("");
+  const [roundResult, setRoundResult] = useState<{
+    eliminatedPlayerId: string;
+    eliminatedWasImpostor: boolean;
+  } | null>(null);
   const [cardFlipped, setCardFlipped] = useState(false);
   const [lobbySettingsDraft, setLobbySettingsDraft] = useState<{
     impostorCount: number;
@@ -34,9 +40,10 @@ export default function App() {
       setMode("menu");
       setError("Lobby zostalo zamkniete.");
     });
-    socket.on("round:result", (result: { eliminatedWasImpostor: boolean }) => {
+    socket.on("round:result", (result: { eliminatedPlayerId: string; eliminatedWasImpostor: boolean }) => {
+      setRoundResult(result);
       setFlash(result.eliminatedWasImpostor ? "red" : "green");
-      setTimeout(() => setFlash(null), 1300);
+      setTimeout(() => setFlash(null), 2200);
     });
     socket.on("session:error", (payload: { message: string }) => setError(payload.message));
     return () => {
@@ -69,6 +76,9 @@ export default function App() {
 
   useEffect(() => {
     setCardFlipped(false);
+    setVoteSubmitted(false);
+    setVotedForName("");
+    setRoundResult(null);
   }, [state?.roundNumber]);
 
   const me = useMemo(
@@ -95,6 +105,9 @@ export default function App() {
   const commonBtn = "rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold hover:bg-violet-500";
   const isCardReveal = state?.status === "CARD_REVEAL";
   const canShowCardFront = isCardReveal && cardFlipped && Boolean(card) && !card?.acknowledged;
+  const isEliminated = Boolean(me?.isEliminated);
+  const eliminatedName = roundResult ? state?.players.find((p) => p.id === roundResult.eliminatedPlayerId)?.username ?? "Gracz" : "";
+  const eliminatedRoleLabel = roundResult?.eliminatedWasImpostor ? "IMPOSTOR" : "UCZESTNIK";
 
   if (mode === "menu") {
     return (
@@ -288,20 +301,53 @@ export default function App() {
             )}
             {(state.status !== "CARD_REVEAL" || card?.acknowledged) && (
               <div className="rounded-xl bg-zinc-800 p-4">
-                <p className="text-sm text-zinc-300">Zapoznales sie z fiszka. Czekaj na pozostalych graczy i aktywacje glosowania.</p>
+                {state.status === "CARD_REVEAL" && (
+                  <p className="text-sm text-zinc-300">Oczekiwanie na wszystkich graczy...</p>
+                )}
+                {state.status === "DISCUSSION" && (
+                  <p className="text-sm text-zinc-300">Gra w toku. Trwa rozmowa uczestnikow.</p>
+                )}
+                {state.status === "ROUND_RESULT" && roundResult && (
+                  <div>
+                    <p className="text-base font-semibold">{eliminatedName} wypada z gry.</p>
+                    <p className="text-sm text-zinc-300">Rola: {eliminatedRoleLabel}</p>
+                  </div>
+                )}
+                {state.status !== "CARD_REVEAL" && state.status !== "DISCUSSION" && state.status !== "ROUND_RESULT" && (
+                  <p className="text-sm text-zinc-300">Czekaj na kolejny etap rundy.</p>
+                )}
               </div>
             )}
             <div className="mt-4 rounded-lg border border-zinc-700 p-3">
               <p className="font-semibold">Glosowanie: {state.status === "VOTING" ? "Aktywne" : "Nieaktywne"}</p>
               {state.status === "VOTING" && (
                 <div className="mt-2 flex gap-2">
-                  <select className="flex-1 rounded-md bg-zinc-800 p-2" value={voteTarget} onChange={(e) => setVoteTarget(e.target.value)}>
-                    <option value="">Wybierz gracza</option>
-                    {state.players.filter((p) => !p.isEliminated && p.id !== localPlayer?.sessionPlayerId).map((p) => (
-                      <option key={p.id} value={p.id}>{p.username}</option>
-                    ))}
-                  </select>
-                  <button className={commonBtn} onClick={() => socket.emit("vote:submit", { voterId: localPlayer?.sessionPlayerId, targetId: voteTarget, code: state.code })}>Glosuj</button>
+                  {isEliminated ? (
+                    <p className="text-sm text-red-300">Zostales wyglosowany. Nie mozesz juz glosowac.</p>
+                  ) : voteSubmitted ? (
+                    <p className="text-sm text-zinc-300">Zaglosowano na: <span className="font-semibold text-zinc-100">{votedForName}</span></p>
+                  ) : (
+                    <>
+                      <select className="flex-1 rounded-md bg-zinc-800 p-2" value={voteTarget} onChange={(e) => setVoteTarget(e.target.value)}>
+                        <option value="">Wybierz gracza</option>
+                        {state.players.filter((p) => !p.isEliminated && p.id !== localPlayer?.sessionPlayerId).map((p) => (
+                          <option key={p.id} value={p.id}>{p.username}</option>
+                        ))}
+                      </select>
+                      <button
+                        className={commonBtn}
+                        onClick={() => {
+                          if (!voteTarget) return;
+                          const targetName = state.players.find((p) => p.id === voteTarget)?.username ?? "Gracz";
+                          socket.emit("vote:submit", { voterId: localPlayer?.sessionPlayerId, targetId: voteTarget, code: state.code });
+                          setVoteSubmitted(true);
+                          setVotedForName(targetName);
+                        }}
+                      >
+                        Glosuj
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -315,11 +361,17 @@ export default function App() {
                 <button className="w-full rounded-lg bg-zinc-700 px-4 py-2" onClick={() => socket.emit("game:reset", { hostSessionPlayerId: localPlayer?.sessionPlayerId, code: state.code })}>Powrot do lobby</button>
               </div>
             )}
-            {card?.isImpostor && (
+            {card?.isImpostor && !isEliminated && (
               <div className="mt-4 rounded-lg border border-red-700 p-3">
                 <p className="font-semibold text-red-300">Strzal impostora (raz na gre)</p>
                 <input value={guess} onChange={(e) => setGuess(e.target.value)} className="mt-2 w-full rounded-md bg-zinc-800 p-2" placeholder="Wpisz haslo" />
                 <button className="mt-2 w-full rounded-lg bg-red-600 px-4 py-2" onClick={() => socket.emit("impostor:guess", { sessionPlayerId: localPlayer?.sessionPlayerId, guessedWord: guess, code: state.code })}>Zgadnij</button>
+              </div>
+            )}
+            {isEliminated && (
+              <div className="mt-4 rounded-lg border border-red-800 bg-red-950/40 p-3">
+                <p className="font-semibold text-red-300">Zostales wyglosowany.</p>
+                <p className="text-sm text-red-200">Nie mozesz juz glosowac ani wykonywac akcji w tej rundzie.</p>
               </div>
             )}
           </aside>

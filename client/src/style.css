@@ -12,7 +12,7 @@ body {
 }
 
 .round-flash {
-  animation: round-flash 1.2s ease-out;
+  animation: round-flash 2.2s ease-out;
 }
 
 @keyframes round-flash {
