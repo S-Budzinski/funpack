@@ -14,12 +14,14 @@ import {
   getPublicStateByCode,
   impostorGuess,
   joinSession,
+  leaveSession,
   nextRound,
   openVoting,
   removePlayer,
   resetGame,
   startGame,
-  submitVote
+  submitVote,
+  updateLobbySettings
 } from "./gameEngine.js";
 import { Category } from "@prisma/client";
 
@@ -92,9 +94,32 @@ io.on("connection", (socket) => {
     io.to(code).emit("session:state", state);
   });
 
+  socket.on("session:leave", async ({ sessionPlayerId, code }) => {
+    try {
+      const result = await leaveSession(sessionPlayerId);
+      socket.leave(code);
+      if (!result || result.deleted) {
+        io.to(code).emit("session:closed", { code });
+        return;
+      }
+      io.to(code).emit("session:state", await getPublicStateByCode(code));
+    } catch (e) {
+      socket.emit("session:error", { message: (e as Error).message });
+    }
+  });
+
   socket.on("session:kick", async ({ hostSessionPlayerId, targetSessionPlayerId, code }) => {
     try {
       await removePlayer(hostSessionPlayerId, targetSessionPlayerId);
+      io.to(code).emit("session:state", await getPublicStateByCode(code));
+    } catch (e) {
+      socket.emit("session:error", { message: (e as Error).message });
+    }
+  });
+
+  socket.on("session:update-settings", async ({ hostSessionPlayerId, code, settings }) => {
+    try {
+      await updateLobbySettings(hostSessionPlayerId, settings);
       io.to(code).emit("session:state", await getPublicStateByCode(code));
     } catch (e) {
       socket.emit("session:error", { message: (e as Error).message });

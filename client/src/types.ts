@@ -22,4 +22,5 @@ export type PlayerCard = {
   word: string | null;
   hint: string | null;
   otherImpostors: { id: string; username: string }[];
+  acknowledged: boolean;
 };

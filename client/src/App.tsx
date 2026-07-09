@@ -16,10 +16,24 @@ export default function App() {
   const [guess, setGuess] = useState("");
   const [voteTarget, setVoteTarget] = useState("");
   const [flash, setFlash] = useState<null | "green" | "red">(null);
+  const [cardFlipped, setCardFlipped] = useState(false);
+  const [lobbySettingsDraft, setLobbySettingsDraft] = useState<{
+    impostorCount: number;
+    selectedCategories: Category[];
+    hintEnabled: boolean;
+    impostorsKnowEachOther: boolean;
+  } | null>(null);
 
   useEffect(() => {
     socket.connect();
     socket.on("session:state", (nextState: PublicState) => setState(nextState));
+    socket.on("session:closed", () => {
+      setLocalPlayer(null);
+      setState(null);
+      setCard(null);
+      setMode("menu");
+      setError("Lobby zostalo zamkniete.");
+    });
     socket.on("round:result", (result: { eliminatedWasImpostor: boolean }) => {
       setFlash(result.eliminatedWasImpostor ? "red" : "green");
       setTimeout(() => setFlash(null), 1300);
@@ -38,12 +52,37 @@ export default function App() {
     getPlayerCard(localPlayer.sessionPlayerId).then(setCard).catch(() => null);
   }, [localPlayer]);
 
+  useEffect(() => {
+    if (!localPlayer || !state) return;
+    getPlayerCard(localPlayer.sessionPlayerId).then(setCard).catch(() => null);
+  }, [localPlayer, state?.roundNumber, state?.status]);
+
+  useEffect(() => {
+    if (!state) return;
+    setLobbySettingsDraft({
+      impostorCount: state.impostorCount,
+      selectedCategories: state.selectedCategories,
+      hintEnabled: state.hintEnabled,
+      impostorsKnowEachOther: state.impostorsKnowEachOther
+    });
+  }, [state?.code, state?.status, state?.impostorCount, state?.selectedCategories, state?.hintEnabled, state?.impostorsKnowEachOther]);
+
+  useEffect(() => {
+    setCardFlipped(false);
+  }, [state?.roundNumber]);
+
   const me = useMemo(
     () => state?.players.find((p) => p.id === localPlayer?.sessionPlayerId) ?? null,
     [state, localPlayer]
   );
   const isHost = Boolean(me?.isHost);
   const leaveLobby = () => {
+    if (localPlayer) {
+      socket.emit("session:leave", {
+        sessionPlayerId: localPlayer.sessionPlayerId,
+        code: localPlayer.code
+      });
+    }
     setLocalPlayer(null);
     setState(null);
     setCard(null);
@@ -54,6 +93,8 @@ export default function App() {
   };
 
   const commonBtn = "rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold hover:bg-violet-500";
+  const isCardReveal = state?.status === "CARD_REVEAL";
+  const canShowCardFront = isCardReveal && cardFlipped && Boolean(card) && !card?.acknowledged;
 
   if (mode === "menu") {
     return (
@@ -131,10 +172,76 @@ export default function App() {
           </div>
           <div className="rounded-xl border border-zinc-800 p-4">
             <h3 className="font-semibold">Ustawienia gry</h3>
-            <p className="text-sm">Impostorzy: {state.impostorCount}</p>
-            <p className="text-sm">Kategorie: {state.selectedCategories.join(", ")}</p>
-            <p className="text-sm">Podpowiedzi: {state.hintEnabled ? "on" : "off"}</p>
-            <p className="text-sm">Impostorzy sie znaja: {state.impostorsKnowEachOther ? "on" : "off"}</p>
+            {!isHost && (
+              <>
+                <p className="text-sm">Impostorzy: {state.impostorCount}</p>
+                <p className="text-sm">Kategorie: {state.selectedCategories.join(", ")}</p>
+                <p className="text-sm">Podpowiedzi: {state.hintEnabled ? "on" : "off"}</p>
+                <p className="text-sm">Impostorzy sie znaja: {state.impostorsKnowEachOther ? "on" : "off"}</p>
+              </>
+            )}
+            {isHost && lobbySettingsDraft && (
+              <div className="mt-2 space-y-3">
+                <div>
+                  <label className="text-sm">Impostorzy: {lobbySettingsDraft.impostorCount}</label>
+                  <input
+                    type="range"
+                    min={1}
+                    max={3}
+                    value={lobbySettingsDraft.impostorCount}
+                    onChange={(e) => setLobbySettingsDraft((prev) => prev ? ({ ...prev, impostorCount: Number(e.target.value) }) : prev)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {categories.map((c) => (
+                    <label key={c} className="rounded-md border border-zinc-700 p-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={lobbySettingsDraft.selectedCategories.includes(c)}
+                        onChange={(e) =>
+                          setLobbySettingsDraft((prev) => {
+                            if (!prev) return prev;
+                            const next = e.target.checked
+                              ? [...prev.selectedCategories, c]
+                              : prev.selectedCategories.filter((x) => x !== c);
+                            return { ...prev, selectedCategories: next };
+                          })
+                        }
+                      />{" "}
+                      {c}
+                    </label>
+                  ))}
+                </div>
+                <label className="block text-sm">
+                  <input
+                    type="checkbox"
+                    checked={lobbySettingsDraft.hintEnabled}
+                    onChange={(e) => setLobbySettingsDraft((prev) => prev ? ({ ...prev, hintEnabled: e.target.checked }) : prev)}
+                  />{" "}
+                  Podpowiedz dla impostora
+                </label>
+                <label className="block text-sm">
+                  <input
+                    type="checkbox"
+                    checked={lobbySettingsDraft.impostorsKnowEachOther}
+                    onChange={(e) => setLobbySettingsDraft((prev) => prev ? ({ ...prev, impostorsKnowEachOther: e.target.checked }) : prev)}
+                  />{" "}
+                  Impostorzy wiedza o sobie
+                </label>
+                <button
+                  className="w-full rounded-lg bg-zinc-700 px-4 py-2 text-sm font-semibold hover:bg-zinc-600"
+                  onClick={() =>
+                    socket.emit("session:update-settings", {
+                      hostSessionPlayerId: localPlayer?.sessionPlayerId,
+                      code: state.code,
+                      settings: lobbySettingsDraft
+                    })
+                  }
+                >
+                  Zapisz ustawienia lobby
+                </button>
+              </div>
+            )}
             {isHost && (
               <button className={`${commonBtn} mt-3 w-full`} onClick={() => socket.emit("game:start", { hostSessionPlayerId: localPlayer?.sessionPlayerId, code: state.code })}>
                 Uruchom gre
@@ -148,17 +255,40 @@ export default function App() {
         <section className="grid gap-4 md:grid-cols-[2fr_1fr]">
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
             <p className="text-sm text-zinc-400">Kategoria</p>
-            <p className="mb-4 text-2xl font-bold">{card?.category ?? "-"}</p>
-            {card && (
+            <p className="mb-4 text-2xl font-bold">{card?.category ?? state?.currentCategory ?? "-"}</p>
+            {isCardReveal && card && !card.acknowledged && (
               <div className="rounded-xl bg-zinc-800 p-4">
-                <p className="text-xl font-semibold">{card.isImpostor ? "Jestes IMPOSOTREM" : `Haslo: ${card.word}`}</p>
-                {card.isImpostor && card.hint && <p className="mt-2 text-zinc-300">Podpowiedz: {card.hint}</p>}
-                {card.isImpostor && card.otherImpostors.length > 0 && (
-                  <p className="mt-1 text-zinc-300">Inny impostor: {card.otherImpostors.map((o) => o.username).join(", ")}</p>
+                {!cardFlipped && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-zinc-300">Najpierw odwroc fiszke, by zobaczyc role i haslo.</p>
+                    <button className={commonBtn} onClick={() => setCardFlipped(true)}>
+                      Odwroc fiszke
+                    </button>
+                  </div>
                 )}
-                <button className={`${commonBtn} mt-3`} onClick={() => socket.emit("card:acknowledge", { sessionPlayerId: localPlayer?.sessionPlayerId, code: state.code })}>
-                  OK, zapamietalem
-                </button>
+                {canShowCardFront && (
+                  <div>
+                    <p className="text-xl font-semibold">{card.isImpostor ? "Jestes IMPOSTOREM" : "Jestes UCZESTNIKIEM"}</p>
+                    <p className="mt-2 text-lg">{card.isImpostor ? "Nie znasz hasla." : `Haslo: ${card.word}`}</p>
+                    <div className="mt-4 border-t border-zinc-700 pt-3">
+                      {card.isImpostor && card.hint && <p className="text-zinc-300">Podpowiedz: {card.hint}</p>}
+                      {card.isImpostor && card.otherImpostors.length > 0 && (
+                        <p className="mt-1 text-zinc-300">Inny impostor: {card.otherImpostors.map((o) => o.username).join(", ")}</p>
+                      )}
+                    </div>
+                    <button
+                      className={`${commonBtn} mt-3`}
+                      onClick={() => socket.emit("card:acknowledge", { sessionPlayerId: localPlayer?.sessionPlayerId, code: state.code })}
+                    >
+                      Dalej
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {(state.status !== "CARD_REVEAL" || card?.acknowledged) && (
+              <div className="rounded-xl bg-zinc-800 p-4">
+                <p className="text-sm text-zinc-300">Zapoznales sie z fiszka. Czekaj na pozostalych graczy i aktywacje glosowania.</p>
               </div>
             )}
             <div className="mt-4 rounded-lg border border-zinc-700 p-3">

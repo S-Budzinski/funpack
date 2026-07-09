@@ -33,6 +33,20 @@ function normalizeCategories(selected: Category[]) {
   return unique.length ? unique : ALL_CATEGORIES;
 }
 
+function sanitizeLobbySettings(input: {
+  impostorCount: number;
+  selectedCategories: Category[];
+  hintEnabled: boolean;
+  impostorsKnowEachOther: boolean;
+}) {
+  return {
+    impostorCount: Math.max(1, Math.min(3, input.impostorCount)),
+    selectedCategories: normalizeCategories(input.selectedCategories),
+    hintEnabled: input.hintEnabled,
+    impostorsKnowEachOther: input.impostorsKnowEachOther
+  };
+}
+
 export async function createSession(config: SessionConfigInput) {
   const code = randomCode();
   const categories = normalizeCategories(config.selectedCategories);
@@ -76,6 +90,60 @@ export async function removePlayer(hostSessionPlayerId: string, targetSessionPla
   if (!host || !host.isHost) throw new Error("Only host can kick players.");
   if (host.id === targetSessionPlayerId) throw new Error("Host cannot kick self.");
   await prisma.sessionPlayer.delete({ where: { id: targetSessionPlayerId } });
+}
+
+export async function updateLobbySettings(hostSessionPlayerId: string, input: {
+  impostorCount: number;
+  selectedCategories: Category[];
+  hintEnabled: boolean;
+  impostorsKnowEachOther: boolean;
+}) {
+  const host = await prisma.sessionPlayer.findUnique({ where: { id: hostSessionPlayerId }, include: { session: true } });
+  if (!host || !host.isHost) throw new Error("Only host can update settings.");
+  if (host.session.status !== SessionStatus.LOBBY) throw new Error("Settings can be updated only in lobby.");
+  const settings = sanitizeLobbySettings(input);
+  await prisma.session.update({
+    where: { id: host.sessionId },
+    data: settings
+  });
+}
+
+export async function leaveSession(sessionPlayerId: string) {
+  const player = await prisma.sessionPlayer.findUnique({
+    where: { id: sessionPlayerId },
+    include: { session: true }
+  });
+  if (!player) return null;
+
+  const sessionId = player.sessionId;
+  const code = player.session.code;
+  const wasHost = player.isHost;
+
+  await prisma.sessionPlayer.delete({ where: { id: sessionPlayerId } });
+
+  const remainingPlayers = await prisma.sessionPlayer.findMany({
+    where: { sessionId },
+    orderBy: { createdAt: "asc" }
+  });
+
+  if (remainingPlayers.length === 0) {
+    await prisma.session.delete({ where: { id: sessionId } });
+    return { code, deleted: true };
+  }
+
+  if (wasHost) {
+    const nextHost = remainingPlayers[0];
+    await prisma.sessionPlayer.update({
+      where: { id: nextHost.id },
+      data: { isHost: true }
+    });
+    await prisma.session.update({
+      where: { id: sessionId },
+      data: { hostSessionPlayerId: nextHost.id }
+    });
+  }
+
+  return { code, deleted: false };
 }
 
 export async function startGame(hostSessionPlayerId: string) {
@@ -288,7 +356,8 @@ export async function getPrivateCard(sessionPlayerId: string) {
     category: sessionPlayer.session.currentCategory,
     word: role.isImpostor ? null : sessionPlayer.session.currentWord,
     hint: role.isImpostor && sessionPlayer.session.hintEnabled ? sessionPlayer.session.currentHint : null,
-    otherImpostors: role.isImpostor && sessionPlayer.session.impostorsKnowEachOther ? otherImpostors : []
+    otherImpostors: role.isImpostor && sessionPlayer.session.impostorsKnowEachOther ? otherImpostors : [],
+    acknowledged: role.acknowledged
   };
 }
 
