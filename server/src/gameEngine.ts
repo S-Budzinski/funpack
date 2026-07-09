@@ -33,6 +33,37 @@ function normalizeCategories(selected: Category[]) {
   return unique.length ? unique : ALL_CATEGORIES;
 }
 
+function toAsciiLower(input: string) {
+  return input
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function createGuestName() {
+  return `Gosc${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+async function ensureUniqueUsernameInSession(sessionId: string, requested: string) {
+  const normalized = requested.trim() || createGuestName();
+  const existing = await prisma.sessionPlayer.findFirst({
+    where: {
+      sessionId,
+      user: {
+        username: {
+          equals: normalized,
+          mode: "insensitive"
+        }
+      }
+    }
+  });
+  if (existing) {
+    throw new Error("Uzytkownik o tej nazwie juz jest w grze.");
+  }
+  return normalized;
+}
+
 function sanitizeLobbySettings(input: {
   impostorCount: number;
   selectedCategories: Category[];
@@ -50,7 +81,8 @@ function sanitizeLobbySettings(input: {
 export async function createSession(config: SessionConfigInput) {
   const code = randomCode();
   const categories = normalizeCategories(config.selectedCategories);
-  const hostUser = await prisma.user.create({ data: { username: config.hostUsername } });
+  const hostName = config.hostUsername.trim() || createGuestName();
+  const hostUser = await prisma.user.create({ data: { username: hostName } });
   const session = await prisma.session.create({
     data: {
       code,
@@ -78,7 +110,8 @@ export async function joinSession(code: string, username: string) {
   const session = await prisma.session.findUnique({ where: { code } });
   if (!session) throw new Error("Session not found.");
   if (session.status !== SessionStatus.LOBBY) throw new Error("Game already started.");
-  const user = await prisma.user.create({ data: { username } });
+  const finalUsername = await ensureUniqueUsernameInSession(session.id, username);
+  const user = await prisma.user.create({ data: { username: finalUsername } });
   const sessionPlayer = await prisma.sessionPlayer.create({
     data: { sessionId: session.id, userId: user.id }
   });
@@ -220,6 +253,9 @@ export async function submitVote(voterId: string, targetId: string) {
   if (!voter || voter.isEliminated) throw new Error("Voter not allowed.");
   const round = await prisma.round.findFirst({ where: { sessionId: voter.sessionId }, orderBy: { roundNumber: "desc" } });
   if (!round) throw new Error("Round missing.");
+  if (voterId === targetId) throw new Error("Nie mozesz zaglosowac na siebie.");
+  const target = await prisma.sessionPlayer.findUnique({ where: { id: targetId } });
+  if (!target || target.sessionId !== voter.sessionId || target.isEliminated) throw new Error("Nieprawidlowy cel glosowania.");
   await prisma.vote.upsert({
     where: { roundId_voterId: { roundId: round.id, voterId } },
     update: { targetId },
@@ -232,7 +268,11 @@ export async function finalizeVoting(hostSessionPlayerId: string) {
   if (!host || !host.isHost) throw new Error("Only host can finalize voting.");
   const round = await prisma.round.findFirst({ where: { sessionId: host.sessionId }, orderBy: { roundNumber: "desc" } });
   if (!round) throw new Error("Round missing.");
-  const alive = await prisma.sessionPlayer.findMany({ where: { sessionId: host.sessionId, isEliminated: false } });
+  const eligibleRoles = await prisma.playerRole.findMany({
+    where: { roundId: round.id },
+    include: { sessionPlayer: true }
+  });
+  const alive = eligibleRoles.map((r) => r.sessionPlayer).filter((p) => !p.isEliminated);
   const votes = await prisma.vote.findMany({ where: { roundId: round.id } });
   if (votes.length !== alive.length) throw new Error("Not all votes submitted.");
 
@@ -279,7 +319,7 @@ export async function impostorGuess(sessionPlayerId: string, guessedWord: string
     where: { roundId_sessionPlayerId: { roundId: round.id, sessionPlayerId } }
   });
   if (!role?.isImpostor) throw new Error("Only impostor can guess.");
-  const isCorrect = player.session.currentWord?.toLowerCase() === guessedWord.trim().toLowerCase();
+  const isCorrect = toAsciiLower(player.session.currentWord ?? "") === toAsciiLower(guessedWord);
   await prisma.guess.create({
     data: { roundId: round.id, sessionPlayerId, guessedWord, isCorrect }
   });
@@ -302,10 +342,14 @@ export async function nextRound(hostSessionPlayerId: string) {
   const round = await prisma.round.create({
     data: { sessionId: host.sessionId, roundNumber: lastRound.roundNumber + 1, phase: SessionStatus.CARD_REVEAL }
   });
-  const alive = await prisma.sessionPlayer.findMany({ where: { sessionId: host.sessionId, isEliminated: false } });
-  const shuffled = [...alive].sort(() => Math.random() - 0.5);
+  await prisma.sessionPlayer.updateMany({
+    where: { sessionId: host.sessionId },
+    data: { isEliminated: false }
+  });
+  const allPlayers = await prisma.sessionPlayer.findMany({ where: { sessionId: host.sessionId } });
+  const shuffled = [...allPlayers].sort(() => Math.random() - 0.5);
   const impostorIds = new Set(shuffled.slice(0, host.session.impostorCount).map((p) => p.id));
-  for (const p of alive) {
+  for (const p of allPlayers) {
     await prisma.playerRole.create({
       data: { roundId: round.id, sessionPlayerId: p.id, isImpostor: impostorIds.has(p.id) }
     });

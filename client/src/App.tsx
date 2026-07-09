@@ -24,6 +24,7 @@ export default function App() {
   } | null>(null);
   const [cardFlipped, setCardFlipped] = useState(false);
   const [impostorDiscovered, setImpostorDiscovered] = useState(false);
+  const [guessUsed, setGuessUsed] = useState(false);
   const [lobbySettingsDraft, setLobbySettingsDraft] = useState<{
     impostorCount: number;
     selectedCategories: Category[];
@@ -52,6 +53,23 @@ export default function App() {
       socket.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    const handler = (payload: { sessionPlayerId: string; isCorrect: boolean }) => {
+      if (!localPlayer) return;
+      if (payload.sessionPlayerId !== localPlayer.sessionPlayerId) return;
+      if (!payload.isCorrect) setGuessUsed(true);
+    };
+    socket.on("impostor:guess:result", handler);
+    return () => {
+      socket.off("impostor:guess:result", handler);
+    };
+  }, [localPlayer]);
+
+  useEffect(() => {
+    if (!error.toLowerCase().includes("guess already used")) return;
+    setGuessUsed(true);
+  }, [error]);
 
   useEffect(() => {
     if (!localPlayer) return;
@@ -88,6 +106,8 @@ export default function App() {
     setVotedForName("");
     setVoteTarget("");
     setRoundResult(null);
+    setGuessUsed(false);
+    setGuess("");
   }, [state?.roundNumber]);
 
   useEffect(() => {
@@ -308,7 +328,10 @@ export default function App() {
                     </div>
                     <button
                       className={`${commonBtn} mt-3`}
-                      onClick={() => socket.emit("card:acknowledge", { sessionPlayerId: localPlayer?.sessionPlayerId, code: state.code })}
+                      onClick={() => {
+                        setCard((prev) => (prev ? { ...prev, acknowledged: true } : prev));
+                        socket.emit("card:acknowledge", { sessionPlayerId: localPlayer?.sessionPlayerId, code: state.code });
+                      }}
                     >
                       Dalej
                     </button>
@@ -384,8 +407,21 @@ export default function App() {
                 {impostorDiscovered || card.acknowledged ? (
                   <div className="mt-4 rounded-lg border border-red-700 p-3">
                     <p className="font-semibold text-red-300">Strzal impostora (raz na gre)</p>
-                    <input value={guess} onChange={(e) => setGuess(e.target.value)} className="mt-2 w-full rounded-md bg-zinc-800 p-2" placeholder="Wpisz haslo" />
-                    <button className="mt-2 w-full rounded-lg bg-red-600 px-4 py-2" onClick={() => socket.emit("impostor:guess", { sessionPlayerId: localPlayer?.sessionPlayerId, guessedWord: guess, code: state.code })}>Zgadnij</button>
+                    <input
+                      value={guess}
+                      disabled={guessUsed}
+                      onChange={(e) => setGuess(e.target.value)}
+                      className="mt-2 w-full rounded-md bg-zinc-800 p-2 disabled:cursor-not-allowed disabled:bg-zinc-700"
+                      placeholder="Wpisz haslo"
+                    />
+                    <button
+                      disabled={guessUsed || !guess.trim()}
+                      className="mt-2 w-full rounded-lg bg-red-600 px-4 py-2 disabled:cursor-not-allowed disabled:bg-zinc-600"
+                      onClick={() => socket.emit("impostor:guess", { sessionPlayerId: localPlayer?.sessionPlayerId, guessedWord: guess, code: state.code })}
+                    >
+                      Zgadnij
+                    </button>
+                    {guessUsed && <p className="mt-2 text-sm text-zinc-300">Wykorzystano juz strzal.</p>}
                   </div>
                 ) : (
                   <div className="mt-4 rounded-lg border border-zinc-700 p-3">
@@ -408,7 +444,7 @@ export default function App() {
 }
 
 function CreateLobby(props: { onBack: () => void; onCreated: (v: LocalPlayer) => void }) {
-  const [hostUsername, setHostUsername] = useState("Gamemaster");
+  const [hostUsername, setHostUsername] = useState("");
   const [impostorCount, setImpostorCount] = useState(1);
   const [selectedCategories, setSelectedCategories] = useState<Category[]>(["SPORT", "ZWIERZETA"]);
   const [hintEnabled, setHintEnabled] = useState(true);
@@ -445,8 +481,9 @@ function CreateLobby(props: { onBack: () => void; onCreated: (v: LocalPlayer) =>
         className="rounded-lg bg-violet-600 px-4 py-2 font-semibold"
         onClick={async () => {
           try {
+            const fallbackName = hostUsername.trim() || `Gosc${Math.floor(1000 + Math.random() * 9000)}`;
             const out = await createSession({
-              hostUsername,
+              hostUsername: fallbackName,
               impostorCount,
               selectedCategories,
               hintEnabled,
@@ -479,7 +516,8 @@ function JoinLobby(props: { onBack: () => void; onJoined: (v: LocalPlayer) => vo
         className="rounded-lg bg-violet-600 px-4 py-2 font-semibold"
         onClick={async () => {
           try {
-            const out = await joinSession({ code, username });
+            const fallbackName = username.trim() || `Gosc${Math.floor(1000 + Math.random() * 9000)}`;
+            const out = await joinSession({ code, username: fallbackName });
             props.onJoined({ sessionPlayerId: out.sessionPlayerId, code });
           } catch (e) {
             setError((e as Error).message);

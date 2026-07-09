@@ -6,9 +6,9 @@ type Entry = { phrase: string; hint: string };
 
 const words: Record<Category, Entry[]> = {
   SPORT: [
-    { phrase: "Pilka nozna", hint: "11 na boisku" }, { phrase: "Koszykowka", hint: "Tablica i kosz" },
-    { phrase: "Siatkowka", hint: "Przez siatke" }, { phrase: "Tenis", hint: "Rakieta i kort" },
-    { phrase: "Boks", hint: "Rekawice i ring" }, { phrase: "Plywanie", hint: "Basen" },
+    { phrase: "Piłka nożna", hint: "11 na boisku" }, { phrase: "Koszykówka", hint: "Tablica i kosz" },
+    { phrase: "Siatkówka", hint: "Przez siatkę" }, { phrase: "Tenis", hint: "Rakieta i kort" },
+    { phrase: "Boks", hint: "Rękawice i ring" }, { phrase: "Pływanie", hint: "Basen" },
     { phrase: "Bieganie", hint: "Buty sportowe" }, { phrase: "Kolarstwo", hint: "Rower" },
     { phrase: "Narciarstwo", hint: "Stok" }, { phrase: "Snowboard", hint: "Deska zimowa" },
     { phrase: "Hokej", hint: "Kij i krażek" }, { phrase: "Golf", hint: "Dołki" },
@@ -30,7 +30,7 @@ const words: Record<Category, Entry[]> = {
   ZWIERZETA: [
     { phrase: "Pies", hint: "Najlepszy przyjaciel" }, { phrase: "Kot", hint: "Mruczy" },
     { phrase: "Lew", hint: "Krol sawanny" }, { phrase: "Tygrys", hint: "Pasy" },
-    { phrase: "Slon", hint: "Traba" }, { phrase: "Zyrafa", hint: "Dluga szyja" },
+    { phrase: "Słoń", hint: "Trąba" }, { phrase: "Żyrafa", hint: "Długa szyja" },
     { phrase: "Wilk", hint: "Wataha" }, { phrase: "Lis", hint: "Rudy spryciarz" },
     { phrase: "Niedzwiedz", hint: "Miod" }, { phrase: "Krolik", hint: "Dlugie uszy" },
     { phrase: "Mysz", hint: "Ser" }, { phrase: "Szczur", hint: "Kanalizacja" },
@@ -53,8 +53,8 @@ const words: Record<Category, Entry[]> = {
     { phrase: "Pizza", hint: "Wloski placek" }, { phrase: "Burger", hint: "Bulka i kotlet" },
     { phrase: "Spaghetti", hint: "Makaron nitki" }, { phrase: "Sushi", hint: "Ryż i nori" },
     { phrase: "Pierogi", hint: "Polskie ciasto" }, { phrase: "Bigos", hint: "Kapusta" },
-    { phrase: "Zurek", hint: "Zakwas" }, { phrase: "Rosol", hint: "Niedzielna zupa" },
-    { phrase: "Pomidorowa", hint: "Czerwna zupa" }, { phrase: "Nalesniki", hint: "Cienkie ciasto" },
+    { phrase: "Żurek", hint: "Zakwas" }, { phrase: "Rosół", hint: "Niedzielna zupa" },
+    { phrase: "Pomidorowa", hint: "Czerwona zupa" }, { phrase: "Naleśniki", hint: "Cienkie ciasto" },
     { phrase: "Gofry", hint: "Krata ciasta" }, { phrase: "Lody", hint: "Na zimno" },
     { phrase: "Czekolada", hint: "Kakao" }, { phrase: "Sernik", hint: "Twarog" },
     { phrase: "Jablko", hint: "Owoc z sadu" }, { phrase: "Banan", hint: "Zolty owoc" },
@@ -72,7 +72,7 @@ const words: Record<Category, Entry[]> = {
     { phrase: "Miod", hint: "Od pszczol" }, { phrase: "Orzechy", hint: "Chrupiace" }
   ],
   MIEJSCE: [
-    { phrase: "Szkola", hint: "Lekcje" }, { phrase: "Szpital", hint: "Leczenie" },
+    { phrase: "Szkoła", hint: "Lekcje" }, { phrase: "Szpital", hint: "Leczenie" },
     { phrase: "Lotnisko", hint: "Odloty" }, { phrase: "Dworzec", hint: "Pociagi" },
     { phrase: "Plaża", hint: "Piasek i morze" }, { phrase: "Gory", hint: "Szczyty" },
     { phrase: "Las", hint: "Drzewa" }, { phrase: "Park", hint: "Alejki" },
@@ -89,7 +89,7 @@ const words: Record<Category, Entry[]> = {
     { phrase: "Hotel", hint: "Noclegi" }, { phrase: "Hostel", hint: "Tanszy nocleg" },
     { phrase: "Zamek", hint: "Historia i mury" }, { phrase: "Rynek", hint: "Centrum miasta" },
     { phrase: "Plac zabaw", hint: "Hustawki" }, { phrase: "Plac budowy", hint: "Dzwig" },
-    { phrase: "Kosciol", hint: "Nabozenstwo" }, { phrase: "Cmentarz", hint: "Nagrobki" },
+    { phrase: "Kościół", hint: "Nabożeństwo" }, { phrase: "Cmentarz", hint: "Nagrobki" },
     { phrase: "Komisariat", hint: "Policja" }, { phrase: "Straznica", hint: "Straz pozarna" },
     { phrase: "Port", hint: "Statki" }, { phrase: "Przystanek", hint: "Autobus" }
   ],
@@ -106,7 +106,7 @@ const words: Record<Category, Entry[]> = {
     { phrase: "Rzeźnik", hint: "Zaklad miesny" }, { phrase: "Rolnik", hint: "Gospodarstwo" },
     { phrase: "Weterynarz", hint: "Leczy zwierzeta" }, { phrase: "Farmaceuta", hint: "Apteka" },
     { phrase: "Prawnik", hint: "Przepisy" }, { phrase: "Sędzia", hint: "Wyroki" },
-    { phrase: "Policjant", hint: "Patrol" }, { phrase: "Strazak", hint: "Gaszenie pozaru" },
+    { phrase: "Policjant", hint: "Patrol" }, { phrase: "Strażak", hint: "Gaszenie pożaru" },
     { phrase: "Ratownik", hint: "Pierwsza pomoc" }, { phrase: "Zolnierz", hint: "Wojsko" },
     { phrase: "Dziennikarz", hint: "Material prasowy" }, { phrase: "Fotograf", hint: "Obiektyw" },
     { phrase: "Aktor", hint: "Plan filmowy" }, { phrase: "Muzyk", hint: "Instrument" },
@@ -122,7 +122,7 @@ const words: Record<Category, Entry[]> = {
     { phrase: "Maraton miejski", hint: "Bieg uliczny" }, { phrase: "Parada", hint: "Przemarsz" },
     { phrase: "Festiwal", hint: "Kilka dni atrakcji" }, { phrase: "Konferencja", hint: "Prelekcje" },
     { phrase: "Warsztaty", hint: "Praktyczne zajecia" }, { phrase: "Szkolenie", hint: "Nauka umiejetnosci" },
-    { phrase: "Egzamin", hint: "Test wiedzy" }, { phrase: "Studniowka", hint: "Taniec przed matura" },
+    { phrase: "Egzamin", hint: "Test wiedzy" }, { phrase: "Studniówka", hint: "Taniec przed maturą" },
     { phrase: "Matura", hint: "Egzamin koncowy" }, { phrase: "Obrona pracy", hint: "Dyplom" },
     { phrase: "Rekrutacja", hint: "Rozmowa o prace" }, { phrase: "Rozmowa kwalifikacyjna", hint: "HR" },
     { phrase: "Spotkanie zespolu", hint: "Statusy" }, { phrase: "Hackathon", hint: "Kodowanie nocne" },
@@ -131,7 +131,7 @@ const words: Record<Category, Entry[]> = {
     { phrase: "Aukcja", hint: "Licytacja" }, { phrase: "Targi", hint: "Stoiska" },
     { phrase: "Mecz towarzyski", hint: "Bez stawki" }, { phrase: "Debata", hint: "Wymiana argumentow" },
     { phrase: "Wybory", hint: "Glosy obywateli" }, { phrase: "Protest", hint: "Transparenty" },
-    { phrase: "Slub cywilny", hint: "Urzad stanu" }, { phrase: "Chrzest", hint: "Ceremonia rodzinna" },
+    { phrase: "Ślub cywilny", hint: "Urząd stanu" }, { phrase: "Chrzest", hint: "Ceremonia rodzinna" },
     { phrase: "Komunia", hint: "Uroczystosc koscielna" }, { phrase: "Rocznica", hint: "Uplyw czasu" },
     { phrase: "Piknik", hint: "Koc i kosz" }, { phrase: "Grill", hint: "Ruszt" },
     { phrase: "Impreza firmowa", hint: "Integracja" }, { phrase: "Noc muzeow", hint: "Zwiedzanie nocne" },

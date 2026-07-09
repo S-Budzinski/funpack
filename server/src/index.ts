@@ -32,7 +32,7 @@ app.use(express.json());
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 const createSchema = z.object({
-  hostUsername: z.string().min(2).max(20),
+  hostUsername: z.string().max(20).optional().default(""),
   impostorCount: z.number().min(1).max(3),
   selectedCategories: z.array(z.nativeEnum(Category)).min(1),
   hintEnabled: z.boolean(),
@@ -50,7 +50,7 @@ app.post("/api/session/create", async (req, res) => {
 
 app.post("/api/session/join", async (req, res) => {
   try {
-    const parsed = z.object({ code: z.string().length(6), username: z.string().min(2).max(20) }).parse(req.body);
+    const parsed = z.object({ code: z.string().length(6), username: z.string().max(20).optional().default("") }).parse(req.body);
     const out = await joinSession(parsed.code, parsed.username);
     res.json(out);
   } catch (e) {
