@@ -321,7 +321,7 @@ async function evaluateWinner(sessionId: string, roundId: string): Promise<Publi
 export async function impostorGuess(sessionPlayerId: string, guessedWord: string) {
   const player = await prisma.sessionPlayer.findUnique({ where: { id: sessionPlayerId }, include: { session: true } });
   if (!player) throw new Error("Player not found.");
-  if (player.guessedThisGame) throw new Error("Guess already used.");
+  if (player.guessedThisGame) return { isCorrect: false, alreadyUsed: true };
   const round = await prisma.round.findFirst({ where: { sessionId: player.sessionId }, orderBy: { roundNumber: "desc" } });
   if (!round) throw new Error("Round missing.");
   const role = await prisma.playerRole.findUnique({
@@ -337,7 +337,7 @@ export async function impostorGuess(sessionPlayerId: string, guessedWord: string
     await prisma.session.update({ where: { id: player.sessionId }, data: { status: SessionStatus.GAME_END } });
     await prisma.round.update({ where: { id: round.id }, data: { phase: SessionStatus.GAME_END, endedAt: new Date() } });
   }
-  return { isCorrect };
+  return { isCorrect, alreadyUsed: false };
 }
 
 export async function nextRound(hostSessionPlayerId: string) {

@@ -25,6 +25,8 @@ export default function App() {
   const [cardFlipped, setCardFlipped] = useState(false);
   const [impostorDiscovered, setImpostorDiscovered] = useState(false);
   const [guessUsed, setGuessUsed] = useState(false);
+  const [gameResultView, setGameResultView] = useState<"WIN" | "LOSE" | null>(null);
+  const [showResultOverlay, setShowResultOverlay] = useState(false);
   const [lobbySettingsDraft, setLobbySettingsDraft] = useState<{
     impostorCount: number;
     selectedCategories: Category[];
@@ -47,7 +49,13 @@ export default function App() {
       setFlash(result.eliminatedWasImpostor ? "red" : "green");
       setTimeout(() => setFlash(null), 2200);
     });
-    socket.on("session:error", (payload: { message: string }) => setError(payload.message));
+    socket.on("session:error", (payload: { message: string }) => {
+      if (payload.message.toLowerCase().includes("guess already used")) {
+        setGuessUsed(true);
+        return;
+      }
+      setError(payload.message);
+    });
     return () => {
       socket.removeAllListeners();
       socket.disconnect();
@@ -55,16 +63,30 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const handler = (payload: { sessionPlayerId: string; isCorrect: boolean }) => {
+    const handler = (payload: { sessionPlayerId: string; isCorrect: boolean; alreadyUsed?: boolean }) => {
       if (!localPlayer) return;
       if (payload.sessionPlayerId !== localPlayer.sessionPlayerId) return;
-      if (!payload.isCorrect) setGuessUsed(true);
+      if (payload.alreadyUsed || !payload.isCorrect) setGuessUsed(true);
     };
     socket.on("impostor:guess:result", handler);
     return () => {
       socket.off("impostor:guess:result", handler);
     };
   }, [localPlayer]);
+
+  useEffect(() => {
+    const gameResultHandler = (payload: { winner: "CIVILIANS" | "IMPOSTORS" }) => {
+      const amImpostor = Boolean(card?.isImpostor);
+      const won = (payload.winner === "IMPOSTORS" && amImpostor) || (payload.winner === "CIVILIANS" && !amImpostor);
+      setGameResultView(won ? "WIN" : "LOSE");
+      setShowResultOverlay(true);
+      setTimeout(() => setShowResultOverlay(false), 10000);
+    };
+    socket.on("game:result", gameResultHandler);
+    return () => {
+      socket.off("game:result", gameResultHandler);
+    };
+  }, [card?.isImpostor]);
 
   useEffect(() => {
     if (!error.toLowerCase().includes("guess already used")) return;
@@ -108,6 +130,8 @@ export default function App() {
     setRoundResult(null);
     setGuessUsed(false);
     setGuess("");
+    setGameResultView(null);
+    setShowResultOverlay(false);
   }, [state?.roundNumber]);
 
   useEffect(() => {
@@ -191,6 +215,22 @@ export default function App() {
           className="round-flash pointer-events-none fixed inset-0 z-50"
           style={{ ["--flash-color" as string]: flash === "green" ? "rgba(34,197,94,0.35)" : "rgba(239,68,68,0.35)" }}
         />
+      )}
+      {showResultOverlay && gameResultView && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center backdrop-blur-md bg-black/45">
+          {gameResultView === "WIN" && (
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+              <div className="win-flare flare-1" />
+              <div className="win-flare flare-2" />
+              <div className="win-flare flare-3" />
+            </div>
+          )}
+          <div className="rounded-2xl border border-zinc-700 bg-zinc-900/90 px-10 py-8 text-center shadow-2xl">
+            <p className={`text-5xl font-extrabold ${gameResultView === "WIN" ? "text-emerald-400" : "text-red-400"}`}>
+              {gameResultView === "WIN" ? "Wygrana" : "Przegrana"}
+            </p>
+          </div>
+        </div>
       )}
       <header className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-3">
         <div>
@@ -353,7 +393,15 @@ export default function App() {
                     <p className="text-sm text-zinc-300">Rola: {eliminatedRoleLabel}</p>
                   </div>
                 )}
-                {state.status !== "CARD_REVEAL" && state.status !== "DISCUSSION" && state.status !== "ROUND_RESULT" && (
+                {state.status === "GAME_END" && gameResultView && (
+                  <div>
+                    <p className={`text-base font-semibold ${gameResultView === "WIN" ? "text-emerald-400" : "text-red-400"}`}>
+                      {gameResultView === "WIN" ? "Rozgrywka wygrana." : "Rozgrywka przegrana."}
+                    </p>
+                    <p className="text-sm text-zinc-300">Oczekiwanie na mistrza gry.</p>
+                  </div>
+                )}
+                {state.status !== "CARD_REVEAL" && state.status !== "DISCUSSION" && state.status !== "ROUND_RESULT" && state.status !== "GAME_END" && (
                   <p className="text-sm text-zinc-300">Czekaj na kolejny etap rundy.</p>
                 )}
               </div>

@@ -162,6 +162,9 @@ io.on("connection", (socket) => {
     try {
       const result = await finalizeVoting(hostSessionPlayerId);
       io.to(code).emit("round:result", result);
+      if (result.winner) {
+        io.to(code).emit("game:result", { winner: result.winner });
+      }
       io.to(code).emit("session:state", await getPublicStateByCode(code));
     } catch (e) {
       socket.emit("session:error", { message: (e as Error).message });
@@ -172,6 +175,9 @@ io.on("connection", (socket) => {
     try {
       const result = await impostorGuess(sessionPlayerId, guessedWord);
       io.to(code).emit("impostor:guess:result", { sessionPlayerId, ...result });
+      if (result.isCorrect) {
+        io.to(code).emit("game:result", { winner: "IMPOSTORS" });
+      }
       io.to(code).emit("session:state", await getPublicStateByCode(code));
     } catch (e) {
       socket.emit("session:error", { message: (e as Error).message });
