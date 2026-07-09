@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SessionStatus {
+  LOBBY
+  CARD_REVEAL
+  DISCUSSION
+  VOTING
+  ROUND_RESULT
+  GAME_END
+}
+
+enum Category {
+  SPORT
+  ZWIERZETA
+  JEDZENIE
+  MIEJSCE
+  ZAWOD
+  WYDARZENIE
+}
+
+model User {
+  id             String          @id @default(cuid())
+  username       String
+  createdAt      DateTime        @default(now())
+  sessionPlayers SessionPlayer[]
+}
+
+model Session {
+  id                      String          @id @default(cuid())
+  code                    String          @unique
+  hostSessionPlayerId     String?
+  status                  SessionStatus   @default(LOBBY)
+  impostorCount           Int             @default(1)
+  selectedCategories      Category[]
+  hintEnabled             Boolean         @default(false)
+  impostorsKnowEachOther  Boolean         @default(false)
+  currentWord             String?
+  currentHint             String?
+  currentCategory         Category?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  sessionPlayers          SessionPlayer[]
+  rounds                  Round[]
+}
+
+model SessionPlayer {
+  id              String    @id @default(cuid())
+  sessionId       String
+  userId          String
+  isHost          Boolean   @default(false)
+  isConnected     Boolean   @default(true)
+  isEliminated    Boolean   @default(false)
+  socketId        String?
+  guessedThisGame Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  session         Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roles           PlayerRole[]
+  votesGiven      Vote[]    @relation("VoteFrom")
+  votesReceived   Vote[]    @relation("VoteTo")
+  guesses         Guess[]
+
+  @@unique([sessionId, userId])
+}
+
+model Round {
+  id           String      @id @default(cuid())
+  sessionId    String
+  roundNumber  Int
+  phase        SessionStatus @default(CARD_REVEAL)
+  startedAt    DateTime    @default(now())
+  endedAt      DateTime?
+  session      Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  playerRoles  PlayerRole[]
+  votes        Vote[]
+  guesses      Guess[]
+
+  @@unique([sessionId, roundNumber])
+}
+
+model PlayerRole {
+  id              String        @id @default(cuid())
+  roundId         String
+  sessionPlayerId String
+  isImpostor      Boolean       @default(false)
+  acknowledged    Boolean       @default(false)
+  round           Round         @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  sessionPlayer   SessionPlayer @relation(fields: [sessionPlayerId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, sessionPlayerId])
+}
+
+model Vote {
+  id            String        @id @default(cuid())
+  roundId       String
+  voterId       String
+  targetId      String
+  createdAt     DateTime      @default(now())
+  round         Round         @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  voter         SessionPlayer @relation("VoteFrom", fields: [voterId], references: [id], onDelete: Cascade)
+  target        SessionPlayer @relation("VoteTo", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, voterId])
+}
+
+model Guess {
+  id            String        @id @default(cuid())
+  roundId       String
+  sessionPlayerId String
+  guessedWord   String
+  isCorrect     Boolean
+  createdAt     DateTime      @default(now())
+  round         Round         @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  sessionPlayer SessionPlayer @relation(fields: [sessionPlayerId], references: [id], onDelete: Cascade)
+}
+
+model WordBank {
+  id       String   @id @default(cuid())
+  category Category
+  phrase   String
+  hint     String?
+
+  @@unique([category, phrase])
+}
